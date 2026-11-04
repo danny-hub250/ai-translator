@@ -112,9 +112,12 @@
   <div class="modal" id="mSettings">
     <div class="sheet">
       <h2>설정</h2>
-      <p class="note">Claude API 키가 필요해요. 키는 <b>이 기기의 브라우저에만</b> 저장되고, Anthropic API 외에는 어디에도 보내지 않아요.
-        키는 <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent)">console.anthropic.com</a>에서 만들 수 있어요. 콘솔에서 월 사용 한도(spend limit)를 꼭 설정해 두세요.</p>
-      <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+      <p class="note">Gemini API 키가 필요해요. 키는 <b>이 기기의 브라우저에만</b> 저장되고, Google Gemini API 외에는 어디에도 보내지 않아요.
+        키는 <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a>에서 무료로 만들 수 있어요. 무료 사용 시 대화 내용이 Google 서비스 개선에 쓰일 수 있으니 개인 정보는 입력하지 마세요.</p>
+      <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off">
+      <h3>모델</h3>
+      <p class="note">기본값: gemini-3.8-flash. 오류가 나면 gemini-3.6-flash 같은 다른 모델 이름을 넣어보세요.</p>
+      <input type="text" id="pModel" placeholder="gemini-3.8-flash" autocomplete="off" autocapitalize="off">
       <h3>학생 정보</h3>
       <p class="note">수업 내용은 이 정보를 기준으로 맞춰져요. 실력이 늘면 바꿔주세요.</p>
       <input type="text" id="pLevel" placeholder="현재 레벨">
@@ -149,9 +152,8 @@
   </div>
 
 <script type="module">
-import Anthropic from "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm";
-
-const MODEL = "claude-opus-5-5";
+const DEFAULT_MODEL = "gemini-3.8-flash";
+const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models/";
 const $ = (id) => document.getElementById(id);
 
 /* ---------------- 저장소 ---------------- */
@@ -168,11 +170,14 @@ const DEFAULT_PROFILE = {
   focus: "Speaking / 문장 만들기",
 };
 
-let apiKey = store.get("apiKey", "");
+let apiKey = store.get("geminiKey", "");
+let model = store.get("model", DEFAULT_MODEL);
 let profile = store.get("profile", DEFAULT_PROFILE);
 let mistakes = store.get("mistakes", []);   // {id, wrong, correct, reason, category, count, streak, last}
 let lessons = store.get("lessons", []);     // {date, learned[], weaknesses[], homework[]}
-let session = store.get("session", null);   // {record, messages}
+let session = store.get("session", null);   // {provider, record, messages: [{role, parts, _chips?}]}
+if (session && session.provider !== "gemini") { session = null; store.del("session"); } // 예전(Claude) 대화는 버림 — 오답노트는 유지
+store.del("apiKey");
 
 /* ---------------- 수업 규칙 (시스템 프롬프트) ---------------- */
 const RULES = `너는 학생의 1:1 영어 과외 선생님이야. 학생은 한국어 사용자이고, 스마트폰으로 수업을 들어.
@@ -228,7 +233,7 @@ const TOOLS = [
   {
     name: "record_mistake",
     description: "학생이 틀린 문법·표현·단어·문장 구조를 오답노트에 기록한다. 학생이 실수할 때마다 호출한다. 같은 종류의 실수가 이미 있으면 같은 category를 쓰면 반복 횟수가 올라간다.",
-    input_schema: {
+    parametersJsonSchema: {
       type: "object",
       properties: {
         wrong: { type: "string", description: "학생이 쓴 틀린 문장 또는 표현" },
@@ -237,30 +242,24 @@ const TOOLS = [
         category: { type: "string", description: "실수 종류를 짧은 한국어로. 예: 'be동사+일반동사 같이 씀', '관사 a/the 빠짐', '과거형'" },
       },
       required: ["wrong", "correct", "reason", "category"],
-      additionalProperties: false,
     },
-    strict: true,
-    eager_input_streaming: true,
   },
   {
     name: "review_result",
     description: "복습 퀴즈에서 학습 기록의 실수(id)를 학생이 맞혔는지 틀렸는지 기록한다.",
-    input_schema: {
+    parametersJsonSchema: {
       type: "object",
       properties: {
         mistake_id: { type: "string", description: "학습 기록에 있는 실수 id" },
         result: { type: "string", enum: ["correct", "wrong"] },
       },
       required: ["mistake_id", "result"],
-      additionalProperties: false,
     },
-    strict: true,
-    eager_input_streaming: true,
   },
   {
     name: "end_lesson",
     description: "학생이 수업을 끝낼 때 오늘 수업 요약을 저장한다.",
-    input_schema: {
+    parametersJsonSchema: {
       type: "object",
       properties: {
         learned: { type: "array", items: { type: "string" }, description: "오늘 배운 표현/내용" },
@@ -268,10 +267,7 @@ const TOOLS = [
         homework: { type: "array", items: { type: "string" }, description: "내일 숙제" },
       },
       required: ["learned", "weaknesses", "homework"],
-      additionalProperties: false,
     },
-    strict: true,
-    eager_input_streaming: true,
   },
 ];
 
@@ -420,104 +416,138 @@ function speak(text) {
 function renderSession() {
   chat.innerHTML = "";
   if (!session || !session.messages.length) return welcome();
-  const toolNames = {};
   for (const m of session.messages) {
-    if (m.role === "user") {
-      if (typeof m.content === "string") addUser(m.content);
-      else for (const b of m.content) if (b.type === "tool_result" && b._chip) addChip(b._chip);
-    } else {
-      const text = m.content.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
-      if (text) addBot(text);
-      for (const b of m.content) if (b.type === "tool_use") toolNames[b.id] = b.name;
-    }
+    const text = visibleText(m.parts);
+    if (m.role === "user") { if (text) addUser(text); }
+    else if (text) addBot(text);
+    for (const c of m._chips || []) addChip(c);
   }
 }
 
-/* ---------------- Claude 호출 (에이전트 루프) ---------------- */
+function visibleText(parts) {
+  return (parts || []).filter((p) => typeof p.text === "string" && !p.thought).map((p) => p.text).join("").trim();
+}
+
+/* ---------------- Gemini 호출 (에이전트 루프) ---------------- */
 let busy = false;
 
-function apiMessages() {
-  // _chip 같은 화면용 필드는 빼고 보낸다 (나머지는 받은 그대로 — 대화 기록은 append-only)
-  return session.messages.map((m) => typeof m.content === "string" ? m : {
-    role: m.role,
-    content: m.content.map((b) => { if (b._chip === undefined) return b; const { _chip, ...rest } = b; return rest; }),
+class ApiError extends Error { constructor(status, message) { super(message); this.status = status; } }
+
+// 화면용 필드(_chips)만 빼고 보낸다. parts는 받은 그대로(thoughtSignature 포함) 돌려준다.
+function apiContents() { return session.messages.map((m) => ({ role: m.role, parts: m.parts })); }
+
+// streamGenerateContent(SSE)를 읽어서 텍스트는 onText로 흘려보내고, 모든 part를 모아 돌려준다.
+async function callGemini(onText) {
+  const res = await fetch(`${API_BASE}${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: RULES + "\n\n" + session.record }] },
+      contents: apiContents(),
+      tools: [{ functionDeclarations: TOOLS }],
+      generationConfig: { thinkingConfig: { thinkingLevel: "LOW" } },
+    }),
   });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const j = await res.json(); msg = j.error?.message || msg; } catch {}
+    throw new ApiError(res.status, msg);
+  }
+
+  const parts = []; let finish = null, blocked = null;
+  const handle = (j) => {
+    if (j.promptFeedback?.blockReason) blocked = j.promptFeedback.blockReason;
+    const c = j.candidates?.[0];
+    if (!c) return;
+    for (const p of c.content?.parts || []) {
+      parts.push(p);
+      if (typeof p.text === "string" && !p.thought && p.text) onText(p.text);
+    }
+    if (c.finishReason) finish = c.finishReason;
+  };
+
+  const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+  const flush = (line) => {
+    line = line.trim();
+    if (!line.startsWith("data:")) return;
+    const data = line.slice(5).trim();
+    if (!data) return;
+    try { handle(JSON.parse(data)); } catch {}
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) { flush(buf.slice(0, i)); buf = buf.slice(i + 1); }
+  }
+  flush(buf);
+  return { parts, finish, blocked };
 }
 
 async function send(text) {
   text = text.trim();
   if (!text || busy) return;
   if (!apiKey) { openModal("mSettings"); return; }
-  if (!session) session = { record: buildRecord(), messages: [] };
+  if (!session) session = { provider: "gemini", record: buildRecord(), messages: [] };
   if (!session.messages.length) chat.innerHTML = "";
 
   busy = true; $("send").disabled = true;
   addUser(text);
-  session.messages.push({ role: "user", content: text });
+  session.messages.push({ role: "user", parts: [{ text }] });
   store.set("session", session);
-
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  const startLen = session.messages.length;
 
   try {
     for (let turn = 0; turn < 8; turn++) {
       const typing = document.createElement("div"); typing.className = "typing"; typing.textContent = "생각 중"; chat.appendChild(typing); scrollDown();
       let bubble = null, acc = "";
 
-      const stream = client.beta.messages.stream({
-        model: MODEL,
-        max_tokens: 64000,
-        output_config: { effort: "low" },
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        system: [
-          { type: "text", text: RULES, cache_control: { type: "ephemeral" } },
-          { type: "text", text: session.record },
-        ],
-        tools: TOOLS,
-        messages: apiMessages(),
-      });
-      stream.on("text", (delta) => {
+      const { parts, finish, blocked } = await callGemini((delta) => {
         if (!bubble) { typing.remove(); bubble = addBot(); }
         acc += delta; bubble.set(acc);
       });
-
-      const msg = await stream.finalMessage();
       typing.remove();
       if (bubble) bubble.done();
 
-      session.messages.push({ role: "assistant", content: msg.content });
+      if (blocked || finish === "SAFETY" || finish === "PROHIBITED_CONTENT" || finish === "BLOCKLIST") {
+        addErr("이 내용에는 답할 수 없어요. 다른 문장으로 해볼까요?"); break;
+      }
+      if (!parts.length) { addErr("빈 응답이 왔어요. 다시 보내주세요."); break; }
+
+      session.messages.push({ role: "model", parts });
       store.set("session", session);
 
-      if (msg.stop_reason === "refusal") { addErr("이 내용에는 답할 수 없어요. 다른 문장으로 해볼까요?"); break; }
-      if (msg.stop_reason !== "tool_use") break;
+      const calls = parts.filter((p) => p.functionCall);
+      if (!calls.length) break;
 
-      const results = [];
-      for (const b of msg.content) {
-        if (b.type !== "tool_use") continue;
-        const r = runTool(b.name, b.input);
-        if (r.chip) addChip(r.chip);
-        results.push({
-          type: "tool_result", tool_use_id: b.id,
-          content: JSON.stringify(r.error ? { error: r.error } : { ...r, chip: undefined }),
-          ...(r.error ? { is_error: true } : {}),
-          _chip: r.chip || null,
-        });
+      const resultParts = [], chips = [];
+      for (const { functionCall: fc } of calls) {
+        const r = runTool(fc.name, fc.args);
+        if (r.chip) { addChip(r.chip); chips.push(r.chip); }
+        const { chip, ...payload } = r;
+        resultParts.push({ functionResponse: { ...(fc.id ? { id: fc.id } : {}), name: fc.name, response: payload } });
       }
-      session.messages.push({ role: "user", content: results });
+      session.messages.push({ role: "user", parts: resultParts, _chips: chips });
       store.set("session", session);
     }
   } catch (e) {
     chat.querySelectorAll(".typing").forEach((t) => t.remove());
-    // 실패한 요청은 다시 보낼 수 있게 마지막 사용자 메시지만 남겨둔다
-    if (e instanceof Anthropic.AuthenticationError) { addErr("API 키가 올바르지 않아요. ⚙︎ 설정에서 확인해 주세요."); }
-    else if (e instanceof Anthropic.RateLimitError) { addErr("요청이 너무 많아요. 잠시 후 다시 보내주세요."); }
-    else if (e instanceof Anthropic.APIConnectionError) { addErr("인터넷 연결을 확인해 주세요."); }
-    else if (e instanceof Anthropic.APIError) { addErr(`오류 (${e.status ?? "?"}): ${e.message}`); }
-    else { addErr("오류: " + (e?.message || e)); }
-    const last = session.messages[session.messages.length - 1];
-    if (last && last.role === "user" && typeof last.content === "string") {
+    if (e instanceof ApiError) {
+      if (e.status === 400 && /api key/i.test(e.message)) addErr("API 키가 올바르지 않아요. ⚙︎ 설정에서 확인해 주세요.");
+      else if (e.status === 401 || e.status === 403) addErr("API 키를 쓸 수 없어요. ⚙︎ 설정에서 키를 확인해 주세요.");
+      else if (e.status === 404) addErr(`모델 '${model}'을 찾을 수 없어요. ⚙︎ 설정에서 모델 이름을 확인해 주세요.`);
+      else if (e.status === 429) addErr("무료 사용 한도(분당/하루 요청 수)를 넘었어요. 잠시 후 다시 보내주세요.");
+      else addErr(`오류 (${e.status}): ${e.message}`);
+    } else if (e instanceof TypeError) {
+      addErr("인터넷 연결을 확인해 주세요.");
+    } else {
+      addErr("오류: " + (e?.message || e));
+    }
+    // 첫 요청에서 실패하면 사용자 메시지를 입력창으로 돌려서 다시 보낼 수 있게 한다
+    if (session.messages.length === startLen) {
       session.messages.pop(); store.set("session", session);
-      $("input").value = last.content;
+      $("input").value = text;
     }
   } finally {
     busy = false; $("send").disabled = false;
@@ -558,7 +588,7 @@ $("mic").onclick = () => {
 /* ---------------- 모달 ---------------- */
 function openModal(id) {
   if (id === "mSettings") {
-    $("apiKey").value = apiKey;
+    $("apiKey").value = apiKey; $("pModel").value = model;
     $("pLevel").value = profile.level; $("pGoal").value = profile.goal; $("pTime").value = profile.time; $("pFocus").value = profile.focus;
   }
   if (id === "mNotes") renderNotes();
@@ -571,7 +601,8 @@ $("btnSettings").onclick = () => openModal("mSettings");
 $("btnNotes").onclick = () => openModal("mNotes");
 
 $("saveSettings").onclick = () => {
-  apiKey = $("apiKey").value.trim(); store.set("apiKey", apiKey);
+  apiKey = $("apiKey").value.trim(); store.set("geminiKey", apiKey);
+  model = $("pModel").value.trim() || DEFAULT_MODEL; store.set("model", model);
   profile = {
     level: $("pLevel").value.trim() || DEFAULT_PROFILE.level,
     goal: $("pGoal").value.trim() || DEFAULT_PROFILE.goal,

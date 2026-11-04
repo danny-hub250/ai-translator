@@ -1,6 +1,6 @@
 # English Tutor
 
-스마트폰에서 URL로 여는 1:1 AI 영어 과외 선생님 (Claude Opus 5.5).
+스마트폰에서 URL로 여는 1:1 AI 영어 과외 선생님 (Google Gemini API).
 
 - 수업 시작 → 복습 퀴즈 3개(첫 수업은 레벨 체크) → 문장 교정 → 재시도 반복
 - 틀린 문장을 **오답노트**에 자동 기록하고, 다음 수업 복습 퀴즈에 다시 출제
@@ -10,12 +10,15 @@
 
 ## 사용법
 
-1. GitHub Pages로 배포: Settings → Pages → Branch `main` / `/ (root)` → Save
-2. 폰에서 `https://danny-hub250.github.io/ai-translator/` 열기 → 공유 → **홈 화면에 추가**
-3. ⚙︎ 설정에 Claude API 키 입력 ([console.anthropic.com](https://console.anthropic.com/settings/keys))
+1. 폰에서 https://danny-hub250.github.io/ai-translator/ 열기 → 공유 → **홈 화면에 추가**
+2. [Google AI Studio](https://aistudio.google.com/apikey)에서 API 키 만들기 (무료 사용 구간 있음)
+3. ⚙︎ 설정에 키 입력 → **▶ 수업 시작하자**
 
-## 데이터
+모델 기본값은 `gemini-3.8-flash`이고, 설정에서 바꿀 수 있습니다.
 
+## 비용 / 데이터
+
+- Gemini 앱 구독(Google AI Pro)과 API는 별개입니다. API는 무료 사용 한도 안에서 결제 없이 쓸 수 있고, 한도를 넘으면 잠시 기다려야 합니다.
+- 무료로 쓰면 대화 내용이 Google 서비스 개선에 쓰일 수 있습니다. 개인 정보는 입력하지 마세요.
 - API 키, 오답노트, 수업 기록은 모두 **그 기기의 브라우저(localStorage)** 에만 저장됩니다. 코드에는 키가 없습니다.
 - 다른 기기로 옮기려면 오답노트 → 내보내기/가져오기.
-- 콘솔에서 월 사용 한도(spend limit)를 설정해 두는 것을 권장합니다.
