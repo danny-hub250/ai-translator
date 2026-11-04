@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="English Tutor">
+<meta name="theme-color" content="#0a0a0c">
+<title>English Tutor</title>
+<style>
+  :root{--bg:#0a0a0c;--panel:#141418;--panel2:#1b1b21;--border:#26262e;--text:#e8e8ec;--muted:#7a7a86;--accent:#3ba1e0;--good:#2ecc71;--warn:#f1c40f;--bad:#e74c3c;}
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    display:flex;flex-direction:column;overflow:hidden;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  header{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+  header .brand{font-weight:700;font-size:14px;letter-spacing:.02em;white-space:nowrap;}
+  header .brand span{color:var(--accent);}
+  header .stat{color:var(--muted);font-size:11px;white-space:nowrap;}
+  header .right{margin-left:auto;display:flex;gap:6px;}
+  button{font-family:inherit;}
+  .hbtn{background:transparent;border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:8px;font-size:12px;cursor:pointer;min-height:34px;}
+  .hbtn:active{background:#22222a;}
+
+  #chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch;}
+  .msg{max-width:88%;padding:10px 13px;border-radius:14px;font-size:15px;line-height:1.55;word-break:break-word;}
+  .msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px;white-space:pre-wrap;}
+  .msg.bot{align-self:flex-start;background:var(--panel2);border:1px solid var(--border);border-bottom-left-radius:4px;}
+  .msg.bot strong{color:#9fd3ff;}
+  .msg.bot ul{padding-left:18px;margin:4px 0;}
+  .msg.bot p{margin:2px 0;}
+  .msg.bot .speak{margin-top:6px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:3px 9px;font-size:12px;cursor:pointer;}
+  .chip{align-self:flex-start;font-size:12px;color:var(--muted);background:#15151a;border:1px dashed var(--border);border-radius:10px;padding:5px 10px;}
+  .err{align-self:center;font-size:13px;color:var(--bad);text-align:center;}
+  .typing{align-self:flex-start;color:var(--muted);font-size:13px;padding:4px 6px;}
+  .typing::after{content:"…";animation:blink 1s infinite;}
+  @keyframes blink{50%{opacity:.2}}
+
+  .welcome{margin:auto;text-align:center;color:var(--muted);font-size:14px;line-height:1.7;padding:20px;}
+  .welcome b{color:var(--text);font-size:18px;display:block;margin-bottom:6px;}
+
+  #quick{display:flex;gap:6px;padding:8px 10px 0;overflow-x:auto;flex-shrink:0;scrollbar-width:none;}
+  #quick::-webkit-scrollbar{display:none;}
+  #quick button{flex-shrink:0;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:16px;padding:7px 12px;font-size:13px;cursor:pointer;}
+  #quick button:active{background:#22222a;}
+
+  #bar{display:flex;align-items:flex-end;gap:6px;padding:8px 10px 10px;background:var(--bg);flex-shrink:0;}
+  #input{flex:1;resize:none;background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:18px;padding:10px 14px;font-size:16px;line-height:1.35;max-height:120px;font-family:inherit;outline:none;}
+  #input:focus{border-color:var(--accent);}
+  .round{width:42px;height:42px;border-radius:50%;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .round.send{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .round:disabled{opacity:.4;}
+  .round.rec{background:var(--bad);border-color:var(--bad);animation:pulse 1.2s infinite;}
+  @keyframes pulse{50%{opacity:.6}}
+  #lang{font-size:11px;font-weight:700;width:34px;height:34px;align-self:center;}
+
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:flex-end;justify-content:center;z-index:20;}
+  .modal.open{display:flex;}
+  .sheet{background:var(--panel);border:1px solid var(--border);border-radius:16px 16px 0 0;width:100%;max-width:640px;max-height:85vh;overflow-y:auto;padding:18px 16px calc(18px + env(safe-area-inset-bottom));}
+  .sheet h2{font-size:16px;margin-bottom:10px;}
+  .sheet h3{font-size:13px;color:var(--muted);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.05em;}
+  .sheet p.note{font-size:12px;color:var(--muted);line-height:1.6;margin:6px 0;}
+  .sheet input[type=password],.sheet input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:11px 12px;font-size:15px;margin:6px 0;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+  .btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.danger{color:var(--bad);}
+  .card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:14px;line-height:1.5;}
+  .card .w{color:var(--bad);text-decoration:line-through;}
+  .card .c{color:var(--good);font-weight:600;}
+  .card .meta{font-size:11px;color:var(--muted);margin-top:4px;}
+  .badge{display:inline-block;font-size:11px;padding:1px 7px;border-radius:8px;background:#2a2a33;color:var(--warn);margin-left:4px;}
+  .badge.ok{color:var(--good);}
+  .empty{color:var(--muted);font-size:13px;}
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">ENGLISH <span>TUTOR</span></div>
+    <div class="stat" id="stat"></div>
+    <div class="right">
+      <button class="hbtn" id="btnNew">새 수업</button>
+      <button class="hbtn" id="btnNotes">오답노트</button>
+      <button class="hbtn" id="btnSettings">⚙︎</button>
+    </div>
+  </header>
+
+  <div id="chat"></div>
+
+  <div id="quick">
+    <button data-q="수업 시작하자">▶ 수업 시작하자</button>
+    <button data-q="힌트 줘">💡 힌트 줘</button>
+    <button data-q="다시 해볼게">🔁 다시 해볼게</button>
+    <button data-q="여행 상황으로 롤플레이 하자">✈️ 여행 롤플레이</button>
+    <button data-q="오늘 수업 끝">🏁 오늘 수업 끝</button>
+  </div>
+
+  <div id="bar">
+    <button class="round" id="lang" title="음성 인식 언어">EN</button>
+    <button class="round" id="mic" title="말하기">🎤</button>
+    <textarea id="input" rows="1" placeholder="영어로 말하거나 써보세요"></textarea>
+    <button class="round send" id="send" title="보내기">↑</button>
+  </div>
+
+  <!-- 설정 -->
+  <div class="modal" id="mSettings">
+    <div class="sheet">
+      <h2>설정</h2>
+      <p class="note">Claude API 키가 필요해요. 키는 <b>이 기기의 브라우저에만</b> 저장되고, Anthropic API 외에는 어디에도 보내지 않아요.
+        키는 <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--accent)">console.anthropic.com</a>에서 만들 수 있어요. 콘솔에서 월 사용 한도(spend limit)를 꼭 설정해 두세요.</p>
+      <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
+      <h3>학생 정보</h3>
+      <p class="note">수업 내용은 이 정보를 기준으로 맞춰져요. 실력이 늘면 바꿔주세요.</p>
+      <input type="text" id="pLevel" placeholder="현재 레벨">
+      <input type="text" id="pGoal" placeholder="공부 목표">
+      <input type="text" id="pTime" placeholder="하루 공부 시간">
+      <input type="text" id="pFocus" placeholder="향상시키고 싶은 영역">
+      <div class="row">
+        <button class="btn primary" id="saveSettings">저장</button>
+        <button class="btn" data-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 오답노트 -->
+  <div class="modal" id="mNotes">
+    <div class="sheet">
+      <h2>오답노트 &amp; 수업 기록</h2>
+      <h3>자주 틀리는 것</h3>
+      <div id="mistakeList"></div>
+      <h3>지난 수업</h3>
+      <div id="lessonList"></div>
+      <h3>백업</h3>
+      <p class="note">기록은 이 기기 브라우저에 저장돼요. 다른 기기로 옮기거나 백업하려면 내보내기/가져오기를 쓰세요.</p>
+      <div class="row">
+        <button class="btn" id="exportBtn">내보내기</button>
+        <button class="btn" id="importBtn">가져오기</button>
+        <input type="file" id="importFile" accept="application/json" hidden>
+        <button class="btn danger" id="resetBtn">기록 전체 삭제</button>
+        <button class="btn" data-close>닫기</button>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+import Anthropic from "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm";
+
+const MODEL = "claude-opus-5-5";
+const $ = (id) => document.getElementById(id);
+
+/* ---------------- 저장소 ---------------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("tutor." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("tutor." + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem("tutor." + k); } catch {} },
+};
+
+const DEFAULT_PROFILE = {
+  level: "초급",
+  goal: "원어민과 자연스럽게 일상 대화하기 (여행에서 좀 더 원활한 의사소통)",
+  time: "하루 30분",
+  focus: "Speaking / 문장 만들기",
+};
+
+let apiKey = store.get("apiKey", "");
+let profile = store.get("profile", DEFAULT_PROFILE);
+let mistakes = store.get("mistakes", []);   // {id, wrong, correct, reason, category, count, streak, last}
+let lessons = store.get("lessons", []);     // {date, learned[], weaknesses[], homework[]}
+let session = store.get("session", null);   // {record, messages}
+
+/* ---------------- 수업 규칙 (시스템 프롬프트) ---------------- */
+const RULES = `너는 학생의 1:1 영어 과외 선생님이야. 학생은 한국어 사용자이고, 스마트폰으로 수업을 들어.
+이 수업의 목표는 영어 지식을 많이 설명하는 게 아니라 학생이 직접 영어를 쓰게 만드는 거야.
+질문 → 학생 답변 → 교정 → 재시도 → 반복 순서로 최대한 많이 연습시켜.
+
+[수업 규칙]
+1. 복습부터 시작하기
+학생이 "수업 시작하자"라고 하면 수업을 시작해. 학습 기록에 오답이나 지난 수업이 있으면, 그걸 활용한 복습 퀴즈 3개를 먼저 내. 반복 횟수가 많은 실수를 우선해.
+퀴즈는 한 번에 하나씩 내고, 정답을 알려주지 말고 학생이 답할 때까지 기다려.
+기록이 없으면(첫 수업) 간단한 레벨 체크 문제를 하나씩 내.
+
+2. 학생 문장 교정하기
+학생이 영어 문장을 쓰거나 말하면 이 형식으로 피드백해:
+
+**내 문장:** I am agree with you.
+**교정:** I agree with you.
+**이유:** agree 자체가 동사라서 am을 쓰지 않아.
+**추가 예문:**
+- I agree with your opinion.
+- I don't agree with him.
+
+문장 전체를 바꾸지 말고 틀렸거나 부자연스러운 부분만 고쳐. 틀린 게 없으면 형식 없이 짧게 칭찬하고 다음 질문으로 넘어가.
+학생 입력은 음성 인식으로 들어올 수 있어. 대소문자·문장부호·음성 인식 오타처럼 보이는 것은 지적하지 마.
+
+3. 설명은 쉽게
+어려운 문법 용어는 최대한 쓰지 말고 한국어로 쉽게 설명해. 긴 설명 대신 짧은 설명 + 실제로 쓸 수 있는 예문 2개 이상.
+
+4. 실수를 학습에 활용하기
+학생이 문법·표현·단어·문장 구조를 틀리면 record_mistake 도구로 반드시 기록해. 같은 종류의 실수가 이미 기록에 있으면 같은 category를 써.
+같은 실수를 반복하면 비슷한 문장으로 연습 문제를 바로 더 내.
+복습 퀴즈에서 기록된 실수를 맞히거나 틀리면 review_result 도구로 결과를 기록해.
+
+5. 바로 정답 알려주지 않기
+학생이 틀리면 먼저 힌트를 한 번 줘. 다시 시도해도 틀리면 그때 정답과 이유를 알려줘.
+
+6. 실제로 말할 수 있는 영어
+문법적으로 맞아도 원어민이 잘 안 쓰는 표현이면 더 자연스러운 표현도 알려줘. 교과서 표현보다 실제 대화, 특히 여행(공항, 호텔, 식당, 쇼핑, 길 묻기, 교통) 상황에서 자주 쓰는 표현을 우선해.
+
+7. 칭찬은 구체적으로, 지적은 짧게
+"잘했어요!" 대신 무엇을 잘했는지 짧게 말해.
+
+8. 수업 마무리
+학생이 "오늘 수업 끝" 또는 비슷한 말을 하면 end_lesson 도구로 오늘 배운 것, 발견한 약점, 내일 숙제를 저장하고, 같은 내용을 학생에게 정리해서 보여줘.
+
+[답변 스타일]
+- 스마트폰 화면이니까 한 번에 짧게. 한 메시지에 질문은 하나만.
+- 메시지는 항상 학생이 할 일(답하기, 다시 말해보기 등)로 끝내.
+- 영어 문장은 학생이 소리 내어 따라 할 수 있게 완전한 문장으로 써.
+- 마크다운은 **굵게**, 목록(-)만 써. 표나 제목(#)은 쓰지 마.`;
+
+const TOOLS = [
+  {
+    name: "record_mistake",
+    description: "학생이 틀린 문법·표현·단어·문장 구조를 오답노트에 기록한다. 학생이 실수할 때마다 호출한다. 같은 종류의 실수가 이미 있으면 같은 category를 쓰면 반복 횟수가 올라간다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        wrong: { type: "string", description: "학생이 쓴 틀린 문장 또는 표현" },
+        correct: { type: "string", description: "교정된 문장" },
+        reason: { type: "string", description: "한국어로 짧은 이유 (한 문장)" },
+        category: { type: "string", description: "실수 종류를 짧은 한국어로. 예: 'be동사+일반동사 같이 씀', '관사 a/the 빠짐', '과거형'" },
+      },
+      required: ["wrong", "correct", "reason", "category"],
+      additionalProperties: false,
+    },
+    strict: true,
+    eager_input_streaming: true,
+  },
+  {
+    name: "review_result",
+    description: "복습 퀴즈에서 학습 기록의 실수(id)를 학생이 맞혔는지 틀렸는지 기록한다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        mistake_id: { type: "string", description: "학습 기록에 있는 실수 id" },
+        result: { type: "string", enum: ["correct", "wrong"] },
+      },
+      required: ["mistake_id", "result"],
+      additionalProperties: false,
+    },
+    strict: true,
+    eager_input_streaming: true,
+  },
+  {
+    name: "end_lesson",
+    description: "학생이 수업을 끝낼 때 오늘 수업 요약을 저장한다.",
+    input_schema: {
+      type: "object",
+      properties: {
+        learned: { type: "array", items: { type: "string" }, description: "오늘 배운 표현/내용" },
+        weaknesses: { type: "array", items: { type: "string" }, description: "오늘 발견한 약점" },
+        homework: { type: "array", items: { type: "string" }, description: "내일 숙제" },
+      },
+      required: ["learned", "weaknesses", "homework"],
+      additionalProperties: false,
+    },
+    strict: true,
+    eager_input_streaming: true,
+  },
+];
+
+function buildRecord() {
+  const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
+  const p = profile;
+  let s = `[학생 정보]\n- 현재 레벨: ${p.level}\n- 목표: ${p.goal}\n- 공부 시간: ${p.time}\n- 향상시키고 싶은 영역: ${p.focus}\n\n오늘 날짜: ${today}\n\n[학습 기록]\n`;
+  const active = mistakes.filter((m) => (m.streak || 0) < 2).sort((a, b) => b.count - a.count || (b.last || "").localeCompare(a.last || "")).slice(0, 30);
+  if (!active.length && !lessons.length) return s + "아직 없음 (첫 수업)";
+  if (active.length) {
+    s += "자주 틀린 것 (id | 반복 횟수 | 종류 | 틀린 문장 → 교정):\n";
+    for (const m of active) s += `- ${m.id} | ${m.count}회 | ${m.category} | ${m.wrong} → ${m.correct}\n`;
+  }
+  const mastered = mistakes.filter((m) => (m.streak || 0) >= 2).map((m) => m.category);
+  if (mastered.length) s += `\n복습에서 2번 연속 맞혀서 졸업한 것: ${[...new Set(mastered)].join(", ")}\n`;
+  const recent = lessons.slice(-3);
+  if (recent.length) {
+    s += "\n최근 수업:\n";
+    for (const l of recent) s += `- ${l.date}: 배운 것 ${l.learned.join(" / ")} | 약점 ${l.weaknesses.join(" / ")} | 숙제 ${l.homework.join(" / ")}\n`;
+  }
+  return s;
+}
+
+/* ---------------- 도구 실행 (브라우저에서) ---------------- */
+const isStr = (v) => typeof v === "string" && v.trim().length > 0;
+const isStrArr = (v) => Array.isArray(v) && v.every((x) => typeof x === "string");
+
+function runTool(name, input) {
+  if (!input || typeof input !== "object") return { error: "입력이 비었거나 형식이 잘못됐어요." };
+  if (name === "record_mistake") {
+    const { wrong, correct, reason, category } = input;
+    if (![wrong, correct, reason, category].every(isStr)) return { error: "wrong, correct, reason, category 모두 필요해요." };
+    const now = new Date().toISOString();
+    const same = mistakes.find((m) => m.category === category);
+    if (same) {
+      Object.assign(same, { wrong, correct, reason, count: same.count + 1, streak: 0, last: now });
+    } else {
+      mistakes.push({ id: "m" + Date.now().toString(36), wrong, correct, reason, category, count: 1, streak: 0, last: now });
+    }
+    store.set("mistakes", mistakes);
+    updateStat();
+    return { ok: true, chip: `📝 오답노트 기록: ${category}${same ? ` (${same.count}회째)` : ""}` };
+  }
+  if (name === "review_result") {
+    const { mistake_id, result } = input;
+    if (!isStr(mistake_id) || !["correct", "wrong"].includes(result)) return { error: "mistake_id와 result(correct|wrong)가 필요해요." };
+    const m = mistakes.find((x) => x.id === mistake_id);
+    if (!m) return { error: `id ${mistake_id}인 기록이 없어요.` };
+    if (result === "correct") m.streak = (m.streak || 0) + 1;
+    else { m.streak = 0; m.count += 1; }
+    m.last = new Date().toISOString();
+    store.set("mistakes", mistakes);
+    updateStat();
+    return { ok: true, streak: m.streak, chip: result === "correct" ? `✅ 복습 통과: ${m.category}${m.streak >= 2 ? " (졸업!)" : ""}` : `🔁 다시 연습: ${m.category}` };
+  }
+  if (name === "end_lesson") {
+    const { learned, weaknesses, homework } = input;
+    if (![learned, weaknesses, homework].every(isStrArr)) return { error: "learned, weaknesses, homework는 문자열 배열이어야 해요." };
+    lessons.push({ date: new Date().toLocaleDateString("ko-KR"), learned, weaknesses, homework });
+    store.set("lessons", lessons);
+    updateStat();
+    return { ok: true, chip: "🏁 오늘 수업 기록을 저장했어요" };
+  }
+  return { error: `알 수 없는 도구: ${name}` };
+}
+
+/* ---------------- 화면 ---------------- */
+const chat = $("chat");
+
+function esc(s) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function md(text) {
+  const lines = esc(text).split("\n");
+  let html = "", inList = false;
+  for (let line of lines) {
+    line = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<strong>$1</strong>");
+    const li = line.match(/^\s*[-*•]\s+(.*)$/);
+    if (li) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${li[1]}</li>`; continue; }
+    if (inList) { html += "</ul>"; inList = false; }
+    html += line.trim() ? `<p>${line}</p>` : "<p style='height:6px'></p>";
+  }
+  if (inList) html += "</ul>";
+  return html;
+}
+
+function scrollDown() { chat.scrollTop = chat.scrollHeight; }
+
+function addUser(text) {
+  const d = document.createElement("div"); d.className = "msg user"; d.textContent = text;
+  chat.appendChild(d); scrollDown();
+}
+function addBot(text = "") {
+  const d = document.createElement("div"); d.className = "msg bot";
+  const body = document.createElement("div"); d.appendChild(body);
+  chat.appendChild(d);
+  const api = {
+    text,
+    set(t) { api.text = t; body.innerHTML = md(t); scrollDown(); },
+    done() {
+      if (!englishOf(api.text)) return;
+      const b = document.createElement("button"); b.className = "speak"; b.textContent = "🔊 영어 듣기";
+      b.onclick = () => speak(englishOf(api.text));
+      d.appendChild(b);
+    },
+  };
+  if (text) { api.set(text); api.done(); }
+  return api;
+}
+function addChip(text) { const d = document.createElement("div"); d.className = "chip"; d.textContent = text; chat.appendChild(d); scrollDown(); }
+function addErr(text) { const d = document.createElement("div"); d.className = "err"; d.textContent = text; chat.appendChild(d); scrollDown(); }
+
+function welcome() {
+  chat.innerHTML = `<div class="welcome"><b>👋 Hi! I'm your English tutor.</b>
+    아래 <b style="display:inline;font-size:14px">▶ 수업 시작하자</b> 를 눌러 시작하세요.<br>
+    🎤 버튼으로 말하면 영어로 받아 적어요.${apiKey ? "" : "<br><br>먼저 ⚙︎ 설정에서 API 키를 넣어주세요."}</div>`;
+}
+
+function updateStat() {
+  const active = mistakes.filter((m) => (m.streak || 0) < 2).length;
+  $("stat").textContent = `수업 ${lessons.length}회 · 오답 ${active}개`;
+}
+
+/* 영어 문장만 골라서 읽기 */
+function englishOf(text) {
+  const out = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/\*\*[^*]*:\*\*/g, "").replace(/\*\*/g, "").replace(/^\s*[-*•]\s*/, "").trim();
+    if (!line) continue;
+    const latin = (line.match(/[A-Za-z]/g) || []).length;
+    const hangul = (line.match(/[가-힣]/g) || []).length;
+    if (latin >= 6 && latin > hangul * 2) out.push(line.replace(/[^\x20-\x7E’‘“”]/g, " ").trim());
+  }
+  return out.join(" ");
+}
+function speak(text) {
+  if (!("speechSynthesis" in window) || !text) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US"; u.rate = 0.9;
+  const v = speechSynthesis.getVoices().find((v) => v.lang === "en-US");
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+
+/* 대화 다시 그리기 (새로고침 후) */
+function renderSession() {
+  chat.innerHTML = "";
+  if (!session || !session.messages.length) return welcome();
+  const toolNames = {};
+  for (const m of session.messages) {
+    if (m.role === "user") {
+      if (typeof m.content === "string") addUser(m.content);
+      else for (const b of m.content) if (b.type === "tool_result" && b._chip) addChip(b._chip);
+    } else {
+      const text = m.content.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+      if (text) addBot(text);
+      for (const b of m.content) if (b.type === "tool_use") toolNames[b.id] = b.name;
+    }
+  }
+}
+
+/* ---------------- Claude 호출 (에이전트 루프) ---------------- */
+let busy = false;
+
+function apiMessages() {
+  // _chip 같은 화면용 필드는 빼고 보낸다 (나머지는 받은 그대로 — 대화 기록은 append-only)
+  return session.messages.map((m) => typeof m.content === "string" ? m : {
+    role: m.role,
+    content: m.content.map((b) => { if (b._chip === undefined) return b; const { _chip, ...rest } = b; return rest; }),
+  });
+}
+
+async function send(text) {
+  text = text.trim();
+  if (!text || busy) return;
+  if (!apiKey) { openModal("mSettings"); return; }
+  if (!session) session = { record: buildRecord(), messages: [] };
+  if (!session.messages.length) chat.innerHTML = "";
+
+  busy = true; $("send").disabled = true;
+  addUser(text);
+  session.messages.push({ role: "user", content: text });
+  store.set("session", session);
+
+  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+
+  try {
+    for (let turn = 0; turn < 8; turn++) {
+      const typing = document.createElement("div"); typing.className = "typing"; typing.textContent = "생각 중"; chat.appendChild(typing); scrollDown();
+      let bubble = null, acc = "";
+
+      const stream = client.beta.messages.stream({
+        model: MODEL,
+        max_tokens: 64000,
+        output_config: { effort: "low" },
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        system: [
+          { type: "text", text: RULES, cache_control: { type: "ephemeral" } },
+          { type: "text", text: session.record },
+        ],
+        tools: TOOLS,
+        messages: apiMessages(),
+      });
+      stream.on("text", (delta) => {
+        if (!bubble) { typing.remove(); bubble = addBot(); }
+        acc += delta; bubble.set(acc);
+      });
+
+      const msg = await stream.finalMessage();
+      typing.remove();
+      if (bubble) bubble.done();
+
+      session.messages.push({ role: "assistant", content: msg.content });
+      store.set("session", session);
+
+      if (msg.stop_reason === "refusal") { addErr("이 내용에는 답할 수 없어요. 다른 문장으로 해볼까요?"); break; }
+      if (msg.stop_reason !== "tool_use") break;
+
+      const results = [];
+      for (const b of msg.content) {
+        if (b.type !== "tool_use") continue;
+        const r = runTool(b.name, b.input);
+        if (r.chip) addChip(r.chip);
+        results.push({
+          type: "tool_result", tool_use_id: b.id,
+          content: JSON.stringify(r.error ? { error: r.error } : { ...r, chip: undefined }),
+          ...(r.error ? { is_error: true } : {}),
+          _chip: r.chip || null,
+        });
+      }
+      session.messages.push({ role: "user", content: results });
+      store.set("session", session);
+    }
+  } catch (e) {
+    chat.querySelectorAll(".typing").forEach((t) => t.remove());
+    // 실패한 요청은 다시 보낼 수 있게 마지막 사용자 메시지만 남겨둔다
+    if (e instanceof Anthropic.AuthenticationError) { addErr("API 키가 올바르지 않아요. ⚙︎ 설정에서 확인해 주세요."); }
+    else if (e instanceof Anthropic.RateLimitError) { addErr("요청이 너무 많아요. 잠시 후 다시 보내주세요."); }
+    else if (e instanceof Anthropic.APIConnectionError) { addErr("인터넷 연결을 확인해 주세요."); }
+    else if (e instanceof Anthropic.APIError) { addErr(`오류 (${e.status ?? "?"}): ${e.message}`); }
+    else { addErr("오류: " + (e?.message || e)); }
+    const last = session.messages[session.messages.length - 1];
+    if (last && last.role === "user" && typeof last.content === "string") {
+      session.messages.pop(); store.set("session", session);
+      $("input").value = last.content;
+    }
+  } finally {
+    busy = false; $("send").disabled = false;
+  }
+}
+
+/* ---------------- 입력 ---------------- */
+const input = $("input");
+function autosize() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 120) + "px"; }
+input.addEventListener("input", autosize);
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && window.matchMedia("(pointer:fine)").matches) { e.preventDefault(); doSend(); }
+});
+function doSend() { const t = input.value; input.value = ""; autosize(); stopRec(); send(t); }
+$("send").onclick = doSend;
+document.querySelectorAll("#quick button").forEach((b) => b.onclick = () => send(b.dataset.q));
+
+/* 음성 인식 */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, recLang = "en-US";
+$("lang").onclick = () => { recLang = recLang === "en-US" ? "ko-KR" : "en-US"; $("lang").textContent = recLang === "en-US" ? "EN" : "KO"; };
+function stopRec() { if (rec) { try { rec.stop(); } catch {} } }
+$("mic").onclick = () => {
+  if (!SR) { addErr("이 브라우저는 음성 인식을 지원하지 않아요. 키보드의 🎤 받아쓰기를 써주세요."); return; }
+  if (rec) return stopRec();
+  rec = new SR(); rec.lang = recLang; rec.interimResults = true; rec.continuous = false;
+  const base = input.value ? input.value.trimEnd() + " " : "";
+  rec.onresult = (e) => {
+    let t = ""; for (const r of e.results) t += r[0].transcript;
+    input.value = base + t; autosize();
+  };
+  rec.onerror = (e) => { if (e.error !== "no-speech" && e.error !== "aborted") addErr("음성 인식 오류: " + e.error); };
+  rec.onend = () => { rec = null; $("mic").classList.remove("rec"); };
+  $("mic").classList.add("rec");
+  rec.start();
+};
+
+/* ---------------- 모달 ---------------- */
+function openModal(id) {
+  if (id === "mSettings") {
+    $("apiKey").value = apiKey;
+    $("pLevel").value = profile.level; $("pGoal").value = profile.goal; $("pTime").value = profile.time; $("pFocus").value = profile.focus;
+  }
+  if (id === "mNotes") renderNotes();
+  $(id).classList.add("open");
+}
+function closeModals() { document.querySelectorAll(".modal").forEach((m) => m.classList.remove("open")); }
+document.querySelectorAll("[data-close]").forEach((b) => b.onclick = closeModals);
+document.querySelectorAll(".modal").forEach((m) => m.addEventListener("click", (e) => { if (e.target === m) closeModals(); }));
+$("btnSettings").onclick = () => openModal("mSettings");
+$("btnNotes").onclick = () => openModal("mNotes");
+
+$("saveSettings").onclick = () => {
+  apiKey = $("apiKey").value.trim(); store.set("apiKey", apiKey);
+  profile = {
+    level: $("pLevel").value.trim() || DEFAULT_PROFILE.level,
+    goal: $("pGoal").value.trim() || DEFAULT_PROFILE.goal,
+    time: $("pTime").value.trim() || DEFAULT_PROFILE.time,
+    focus: $("pFocus").value.trim() || DEFAULT_PROFILE.focus,
+  };
+  store.set("profile", profile);
+  closeModals();
+  if (!session || !session.messages.length) welcome();
+};
+
+$("btnNew").onclick = () => {
+  if (busy) return;
+  if (session && session.messages.length && !confirm("지금 대화를 끝내고 새 수업을 시작할까요?\n(오답노트는 그대로 남아요)")) return;
+  session = null; store.del("session"); welcome();
+};
+
+function renderNotes() {
+  const ml = $("mistakeList");
+  const sorted = [...mistakes].sort((a, b) => ((a.streak || 0) >= 2) - ((b.streak || 0) >= 2) || b.count - a.count);
+  ml.innerHTML = sorted.length ? sorted.map((m) => `
+    <div class="card">
+      <div><b>${esc(m.category)}</b>${(m.streak || 0) >= 2 ? '<span class="badge ok">졸업</span>' : `<span class="badge">${m.count}회</span>`}</div>
+      <div class="w">${esc(m.wrong)}</div>
+      <div class="c">${esc(m.correct)}</div>
+      <div class="meta">${esc(m.reason)}</div>
+    </div>`).join("") : '<div class="empty">아직 기록된 실수가 없어요.</div>';
+  const ll = $("lessonList");
+  ll.innerHTML = lessons.length ? [...lessons].reverse().map((l) => `
+    <div class="card">
+      <div><b>${esc(l.date)}</b></div>
+      <div class="meta">📘 배운 것</div><div>${l.learned.map(esc).join("<br>")}</div>
+      <div class="meta">⚠️ 약점</div><div>${l.weaknesses.map(esc).join("<br>")}</div>
+      <div class="meta">✏️ 숙제</div><div>${l.homework.map(esc).join("<br>")}</div>
+    </div>`).join("") : '<div class="empty">"오늘 수업 끝"이라고 하면 여기에 쌓여요.</div>';
+}
+
+$("exportBtn").onclick = () => {
+  const blob = new Blob([JSON.stringify({ profile, mistakes, lessons }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `english-tutor-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("importBtn").onclick = () => $("importFile").click();
+$("importFile").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!Array.isArray(d.mistakes) || !Array.isArray(d.lessons)) throw new Error("형식이 달라요");
+    mistakes = d.mistakes; lessons = d.lessons; if (d.profile) profile = d.profile;
+    store.set("mistakes", mistakes); store.set("lessons", lessons); store.set("profile", profile);
+    updateStat(); renderNotes(); alert("가져왔어요. 다음 수업부터 반영돼요.");
+  } catch (err) { alert("가져오기 실패: " + err.message); }
+  e.target.value = "";
+};
+$("resetBtn").onclick = () => {
+  if (!confirm("오답노트와 수업 기록을 모두 지울까요? 되돌릴 수 없어요.")) return;
+  mistakes = []; lessons = []; session = null;
+  ["mistakes", "lessons", "session"].forEach(store.del);
+  updateStat(); renderNotes(); welcome();
+};
+
+/* ---------------- 시작 ---------------- */
+updateStat();
+renderSession();
+if ("speechSynthesis" in window) speechSynthesis.getVoices();
+</script>
+</body>
+</html>
